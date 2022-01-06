@@ -1,0 +1,201 @@
+---
+title: "Mini-project"
+output: html_notebook
+---
+
+```{r}
+require(BSDA)
+require(EnvStats)
+library(BSDA)
+library(EnvStats)
+library(ggplot2)
+library(hrbrthemes)
+library(dplyr)
+library(tidyr)
+library(viridis)
+library(corrplot)
+```
+
+## Generating data
+
+### Basically, we did't have any dataset because it is rather hard to find such data on the Internet, so we decided that we will scrap it from official site of [English Premier League] (https://www.premierleague.com/results?co=1&se=363&cl=-1). So, our dataset is a set of all matches in EPL of different seasons with full statistics of each match.
+
+### 
+
+Generating densities
+
+```{r}
+means <- read.csv(file = 'data/means.csv');
+
+ggplot(means,aes(team,final_third_entries_av_diff,fill=team))+geom_bar(stat="identity")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+  coord_cartesian(ylim = c(-30, 30))
+
+ggplot(means,aes(team,attempts_obox_av_diff,fill=team))+
+  geom_bar(stat="identity")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+  coord_cartesian(ylim = c(-30, 30))
+
+ggplot(means,aes(team,total_offside_av_diff,fill=team))+
+  geom_bar(stat="identity")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+  coord_cartesian(ylim = c(-30, 30))
+
+ggplot(means,aes(team,total_tackle_av_diff,fill=team))+
+  geom_bar(stat="identity")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+  coord_cartesian(ylim = c(-30, 30))
+
+ggplot(means,aes(team,blocked_pass_av_diff,fill=team))+
+  geom_bar(stat="identity")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+  coord_cartesian(ylim = c(-30, 30))
+
+ggplot(means,aes(team,interception_av_diff,fill=team))+
+  geom_bar(stat="identity")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+  coord_cartesian(ylim = c(-30, 30))
+
+ggplot(means,aes(team,attempts_ibox_av_diff,fill=team))+
+  geom_bar(stat="identity")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+  coord_cartesian(ylim = c(-30, 30))
+```
+
+```{r}
+cor <- cor(means[, c('attempts_ibox', 'attempts_obox', 'total_tackle', 'finale.position', 'final_third_entries', 'total_offside', 'blocked_pass')])
+corrplot(cor, method = "circle")
+```
+
+
+Checking correlation
+
+```{r}
+scores.data <- read.csv('data/shots.csv')
+
+cor <- cor(scores.data[, c("score", "possession_percentage", "shots")])
+corrplot(cor, method = "circle")
+```
+
+```{r}
+cor(scores$score, scores$shots)
+plot(score ~ shots, data = scores.data)
+plot(density(scores$score))
+
+shots.data.lm <- lm(score ~ shots, data = scores.data)
+
+summary(shots.data.lm)
+```
+```{r}
+par(mfrow=c(2,2))
+plot(shots.data.lm)
+par(mfrow=c(1,1))
+```
+```{r}
+ggplot(scores.data, aes(x=shots, y=score)) +
+  geom_point(aes(col=team)) +
+  geom_smooth(formula = y ~ x, method="lm") +
+  labs(x= "Shots", y= "Score", title = "Score vs Total shots") +
+  theme_light()
+```
+
+
+
+```{r}
+cor(scores.data$score, scores.data$possession_percentage)
+plot(score ~ possession_percentage, data = scores.data)
+
+possessions.data.lm <- lm(score ~ possession_percentage, data = scores.data)
+
+summary(possessions.data.lm)
+```
+
+```{r}
+par(mfrow=c(2,2))
+plot(possessions.data.lm)
+par(mfrow=c(1,1))
+```
+
+```{r}
+ggplot(scores.data, aes(x=possession_percentage, y=score)) +
+  geom_point(aes(col=team)) +
+  geom_smooth(formula = y ~ x, method="lm") +
+  labs(x= "Possession %", y= "Score", title = "Possession % vs Total shots") +
+  theme_light()
+
+```
+
+## Testing hypotheses.
+
+### We have 2 hypotheses:
+### 1. If two aggressive teams are playing and there was 1 or less goals in first half, there will be 2 or more goals in the second half.
+### 2. If two defensive teams are playing and there was 3 or more goals in first half, there will be 1 or less goals in the second half.
+
+### To test these hypotheses we have to determine which teams are agressive and which are defensive. We are modeling this based on mean statistics each has team for one season. We decided to take **final_third_entries, attempts_obox (shots outside from box), attempts_ibox (shots inside the box), total_offside** as statistics which will be responsible for attacking part and **total_tackle, blocked_pass, interception** as statistics which will be responsible for defensive part. In our opinion, these statistics can be very useful in determination which style of play has each team.
+
+### For each of these statistics we calculated the mean for the whole season and mean for each team. Then, for each team we calculated the percentage difference of each statistics (corresponding plots you can find below). As we suggest that all statistics are independent and have the same weight for our model, we decided to introduce such parameter as rating R. $$R = 1/4 *(\text{final_third_entries_mean+attempts_obox_mean+attempts_ibox_mean+total_offside_mean})-1/3*(\text{total_tackle_mean+blocked_pass_mean+interception_mean})$$
+
+### Then we calucalted the mean of these ratings and all teams with rating less than mean are defensive, bigger than mean are aggressive. After this, we filtered all the matches and splitted them into 2 categories: **matches between 2 aggressive teams and matches between 2 defensive teams.**
+```{r}
+aggressive <- read.csv(file = 'data/strategies/agressive.csv');
+defensive <- read.csv(file = 'data/strategies/defensive.csv');
+```
+
+## Filtered data for matches between 2 aggressive teams and the analysis of 1 hypothese:
+```{r}
+
+filtered_aggressive = aggressive[aggressive$first_half_goals1 + aggressive$first_half_goals2 < 2,]
+filtered_aggressive
+success = 0
+diff_aggressive = c()
+for (match in 1:nrow(filtered_aggressive)) {
+  score1 = filtered_aggressive[match, "score1"]
+  score2 = filtered_aggressive[match, "score2"]
+  first_half_goals1 = filtered_aggressive[match, "first_half_goals1"]
+  first_half_goals2 = filtered_aggressive[match, "first_half_goals2"]
+  
+  score = score1 + score2
+  half_score = first_half_goals1 + first_half_goals2
+  if(score - half_score >= 2){
+    success = success + 1
+  }
+  diff_aggressive = c(diff_aggressive, score - half_score)
+}
+cat("Success of such a strategy is", success/nrow(filtered_aggressive)*100,"%")
+```
+
+```{r}
+hist(diff_aggressive, main = "Frequence of goals in second half", xlab = "Number of goals in second half")
+```
+
+### As we have 55.10204% as an average success of our strategy, it means that it will be profitable to use it in betting since the average coefficient for such strategy will be $$1/0.55=1.81$$.
+
+## Filtered data for matches between 2 defensive teams and the analysis of 2 hypothese:
+```{r}
+
+filtered_defensive = defensive[defensive$first_half_goals1 + defensive$first_half_goals2 > 2,]
+filtered_defensive
+success = 0
+diff_defensive = c()
+for (match in 1:nrow(filtered_defensive)) {
+  score1 = filtered_defensive[match, "score1"]
+  score2 = filtered_defensive[match, "score2"]
+  first_half_goals1 = filtered_defensive[match, "first_half_goals1"]
+  first_half_goals2 = filtered_defensive[match, "first_half_goals2"]
+  
+  score = score1 + score2
+  half_score = first_half_goals1 + first_half_goals2
+  if(score - half_score < 2){
+    success = success + 1
+  }
+  diff_defensive = c(diff_defensive, score - half_score)
+}
+cat("Success of such a strategy is", success/nrow(filtered_defensive)*100,"%")
+```
+
+```{r}
+hist(diff_defensive, main = "Frequence of goals in second half", xlab = "Number of goals in second half")
+```
+### As we have 63.07692% as an average success of our strategy, it means that it will be profitable to use it in betting since the average coefficient for such strategy will be $$1/0.63=1.59$$.
+
+## Conclusions: to continue testing these hypotheses, we have to analyze betting market and find the average coefficient for each strategy for a long distance. If these coefficients will be equall or higher than $1.81$ and $1.59$ for 1 and 2 hypothese respectively, we have to accept them and use them in betting, receiving income!

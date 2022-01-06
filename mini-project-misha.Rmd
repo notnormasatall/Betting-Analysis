@@ -1,0 +1,132 @@
+---
+title: "Mini-project"
+output: html_notebook
+---
+
+```{r}
+require(BSDA)
+require(EnvStats)
+library(BSDA)
+library(EnvStats)
+library(ggplot2)
+library(hrbrthemes)
+library(dplyr)
+library(tidyr)
+library(viridis)
+library(corrplot)
+```
+
+Generating densities
+
+```{r}
+means <- read.csv(file = 'data/means.csv');
+
+ggplot(means,aes(team,final_third_entries_av_diff,fill=team))+
+  geom_bar(stat="identity")+
+  labs(x= "Team", y= "Final third entries") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+  coord_cartesian(ylim = c(-30, 30))
+
+ggplot(means,aes(team,attempts_obox_av_diff,fill=team))+
+  geom_bar(stat="identity")+
+  labs(x= "Team", y= "Attempts obox") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+  coord_cartesian(ylim = c(-30, 30))
+
+ggplot(means,aes(team,total_offside_av_diff,fill=team))+
+  geom_bar(stat="identity")+
+  labs(x= "Team", y= "Total offsides number") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+  coord_cartesian(ylim = c(-30, 30))
+
+ggplot(means,aes(team,total_tackle_av_diff,fill=team))+
+  geom_bar(stat="identity")+
+  labs(x= "Team", y= "Total tackle number") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+  coord_cartesian(ylim = c(-30, 30))
+
+ggplot(means,aes(team,blocked_pass_av_diff,fill=team))+
+  geom_bar(stat="identity")+
+  labs(x= "Team", y= "Blocked passes") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+  coord_cartesian(ylim = c(-30, 30))
+
+ggplot(means,aes(team,interception_av_diff,fill=team))+
+  geom_bar(stat="identity")+
+  labs(x= "Team", y= "Average interception") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+  coord_cartesian(ylim = c(-30, 30))
+
+ggplot(means,aes(team,attempts_ibox_av_diff,fill=team))+
+  geom_bar(stat="identity")+
+  labs(x= "Team", y= "Attempts ibox") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+  coord_cartesian(ylim = c(-30, 30))
+```
+
+```{r}
+cor <- cor(means[, c('attempts_ibox', 'attempts_obox', 'total_tackle', 'finale.position', 'final_third_entries', 'total_offside', 'blocked_pass')])
+corrplot(cor, method = "circle")
+```
+
+#### Modelling shot sttempts inside and outside the pen area as well as possession against total goals scored in a single season.
+For this step in our research, we create linear models of attempted shots inside and outside the box against goals scored in a single seasons and ball possession percentage by teams against their total score in a single season. For this part we track teams contending in 2020-2021 English Premier League season and track their statistics such as ball possession and attempted scores and their actual scores for seasons of 2016-2017, 2017-2018, 2018-2019, 2019-2020, 2020-2021 of English Premier League.
+
+### Checking the corellation between the parameters.
+```{r}
+scores.data <- read.csv('data/shots.csv')
+
+cor <- cor(scores.data[, c("score", "possession_percentage", "shots")])
+corrplot(cor, method = "circle")
+```
+since our values of goal attempts and ball possession are highly correlated, we ought not to use them simultaneously in a single linear regression model. Instead we will use them separately for multiple simple regression models.
+
+### Normality of the data
+in this step we check if the dependent data (in our case the total scores of a team in a single season for each of the seasons from 2016-17: 2020-21) follows the normal distribution so we can proceed with our linear regression.
+```{r}
+cor(scores.data$score, scores.data$shots)
+cor(scores.data$score, scores.data$possession_percentage)
+plot(density(scores.data$score))
+plot(density(scores.data$possession_percentage))
+```
+We can clearly see that observations are bell-shaped, with more observations in the middle of both distributions.
+
+### Linearity of the data
+for the next step we check the linearity of relations between shot attempts and goals.
+
+```{r}
+plot(score ~ shots, data = scores.data)
+plot(score ~ possession_percentage, data = scores.data)
+```
+the relationship between dependent and indendent data are linear.
+
+### Linear regression analysis
+```{r}
+shots.data.lm <- lm(score ~ shots, data = scores.data)
+summary(shots.data.lm)
+possessions.data.lm <- lm(score ~ possession_percentage, data = scores.data)
+summary(possessions.data.lm)
+```
+we can see significant relationship between shot attempts and scores and between possession percentage and score, since p-value for both is extremely low. On average 0.252 increase in score for every unit of shots, as well as 1.88 increase in posession represents a unit increase in goals over season.
+
+
+### Results Visualization
+```{r}
+ggplot(scores.data, aes(x=shots, y=score)) +
+  geom_point(aes(col=team)) +
+  geom_smooth(formula = y ~ x, method="lm") +
+  labs(x= "Shots", y= "Score", title = "Score vs Total shots") +
+  theme_light()
+```
+
+
+
+```{r}
+ggplot(scores.data, aes(x=possession_percentage, y=score)) +
+  geom_point(aes(col=team)) +
+  geom_smooth(formula = y ~ x, method="lm") +
+  labs(x= "Possession %", y= "Score", title = "Possession % vs Total shots") +
+  theme_light()
+
+```
+
